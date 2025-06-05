@@ -14,7 +14,7 @@
 }
 
 .select-error {
-  background: #ffb3b3;
+  background: #ffb3b3 !important;
   border-radius: 6px;
 }
 
@@ -36,12 +36,13 @@
 .lesson-number {
   font-weight: bold;
   text-align: center;
-  width: 80px;
+  width: 40px;
 }
 
 .group-cell {
   width: 180px;
   height: 70px;
+  vertical-align: top;
 }
 
 .cell-content {
@@ -98,4 +99,13 @@
   border: none;
   font-size: 1em;
   cursor: pointer;
+}
+
+.subject-select {
+  font-size: 0.9em;
+  font-weight: 700;
+}
+
+input[type="time"] {
+  margin-left: 8px;
 } 

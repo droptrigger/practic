@@ -9,6 +9,7 @@ export type ScheduleCell = {
   teacherId2?: string;
   roomId: string;
   roomId2?: string;
+  time?: string;
 };
 
 export type Schedule = {
