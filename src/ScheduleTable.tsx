@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { ScheduleCell } from './types';
 import './styles/ScheduleTable.css';
 import Select from 'react-select';
+// @ts-ignore
+import pdfMake from 'pdfmake/build/pdfmake';
+// @ts-ignore
+import * as pdfFonts from 'pdfmake/build/vfs_fonts';
+pdfMake.vfs = (pdfFonts as any).vfs;
 
 const GROUPS_IN_ROW = 7;
 const MIN_LESSONS = 4;
@@ -519,6 +524,137 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ startLessonNumber 
     }
   };
 
+  // --- PDF EXPORT ---
+  const handleExportPDF = () => {
+    // Заголовок и подзаголовок
+    const docContent = [
+      {
+        columns: [
+          { width: '*', text: '' },
+          { width: 'auto', text: 'ЗНАМЕНАТЕЛЬ', alignment: 'right', fontSize: 18, bold: true, margin: [0, 0, 0, 8] }
+        ]
+      },
+      {
+        text: 'Р А С П И С А Н И Е',
+        style: 'header',
+        alignment: 'center',
+        fontSize: 16,
+        margin: [0, 0, 0, 4]
+      },
+      {
+        text: `учебных занятий на ${date}  ${shift} смена`,
+        alignment: 'center',
+        fontSize: 12,
+        margin: [0, 0, 0, 8]
+      }
+    ];
+
+    // Для каждого ряда (группы) формируем таблицу
+    groupRows.forEach((row, rowIdx) => {
+      const groupNames = row.groups.map(groupId => {
+        const group = allGroups.find(g => g.id === groupId);
+        return group ? group.name : '';
+      });
+
+      // Формируем тело таблицы
+      const tableBody = [];
+
+      // Первая строка: объединённая ячейка "понедельник" + группы
+      tableBody.push([
+        { 
+          rowSpan: row.lessons + 1, 
+          text: 'понедельник', 
+          alignment: 'center', 
+          fontSize: 12, 
+          bold: true, 
+          margin: [0, 0, 0, 0], 
+          fillColor: '#f5f5f5' 
+        },
+        { 
+          text: 'пара', 
+          alignment: 'center', 
+          fontSize: 11, 
+          bold: true, 
+          fillColor: '#f5f5f5' 
+        },
+        ...groupNames.map(name => ({
+          text: name,
+          alignment: 'center',
+          fontSize: 11,
+          bold: true,
+          fillColor: '#f5f5f5'
+        }))
+      ]);
+
+      // Для каждой пары (урока)
+      for (let lessonIdx = 0; lessonIdx < row.lessons; lessonIdx++) {
+        const rowCells = [
+          { 
+            text: `${lessonIdx + startLessonNumber} пара`, 
+            alignment: 'center', 
+            fontSize: 11, 
+            margin: [0, 2, 0, 2] 
+          }
+        ];
+        for (let groupIdx = 0; groupIdx < row.groups.length; groupIdx++) {
+          if (!row.groups[groupIdx]) {
+            rowCells.push({ text: '—', alignment: 'center', fontSize: 10, margin: [0, 2, 0, 2] });
+            continue;
+          }
+          const cell = row.schedule[lessonIdx][groupIdx];
+          const subject = subjects.find(s => s.id === cell.subjectId);
+          const teacher = teachers.find(t => t.id === cell.teacherId);
+          const room = rooms.find(r => r.id === cell.roomId);
+          const teacher2 = cell.teacherId2 ? teachers.find(t => t.id === cell.teacherId2) : null;
+          const room2 = cell.roomId2 ? rooms.find(r => r.id === cell.roomId2) : null;
+          const time = cell.time || '';
+          let text = '';
+          if (subject) text += subject.name + '\n';
+          if (teacher || room) text += (teacher ? teacher.name : '') + (room ? '   ' + room.number : '');
+          if (teacher2 || room2) text += '\n' + (teacher2 ? teacher2.name : '') + (room2 ? '   ' + room2.number : '');
+          rowCells.push({
+            text: text.trim() || '',
+            alignment: 'left',
+            fontSize: 10,
+            margin: [0, 2, 0, 2]
+          });
+        }
+        tableBody.push(rowCells);
+      }
+
+      docContent.push({
+        table: {
+          headerRows: 1,
+          widths: [60, 45, ...Array(row.groups.length).fill('*')],
+          body: tableBody
+        },
+        layout: {
+          fillColor: (rowIdx: any, node: any, colIdx: any) => (rowIdx === 0 ? '#f5f5f5' : null),
+          hLineWidth: () => 1,
+          vLineWidth: () => 1,
+          hLineColor: () => '#000',
+          vLineColor: () => '#000'
+        },
+        margin: [0, 0, 0, 16]
+      } as any);
+    });
+
+    pdfMake.createPdf({
+      content: docContent,
+      defaultStyle: {
+        font: 'Roboto',
+        fontSize: 10
+      },
+      styles: {
+        header: {
+          fontSize: 16,
+          bold: true,
+          alignment: 'center',
+        }
+      }
+    }).download(`schedule_${date}_shift${shift}.pdf`);
+  };
+
   return (
     <div className="schedule-container">
       {groupRows.map((row, rowIdx) => {
@@ -577,16 +713,22 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ startLessonNumber 
       </div>
       <div style={{display: 'flex', justifyContent: 'space-between', marginTop: 24, alignItems: 'center'}}>
         <button
-          style={{width: '48%', background: '#1976d2', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: '0 2px 8px rgba(25,118,210,0.08)'}}
+          style={{width: '32%', background: '#1976d2', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: '0 2px 8px rgba(25,118,210,0.08)'}}
           onClick={handleSave}
         >
           Сохранить расписание
         </button>
         <button
-          style={{width: '48%', background: '#f5f5f5', color: '#1976d2', border: '1.5px solid #1976d2', borderRadius: 8, padding: '10px 0', fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: '0 2px 8px rgba(25,118,210,0.04)'}}
+          style={{width: '32%', background: '#f5f5f5', color: '#1976d2', border: '1.5px solid #1976d2', borderRadius: 8, padding: '10px 0', fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: '0 2px 8px rgba(25,118,210,0.04)'}}
           onClick={() => setShowDuplicate(true)}
         >
           Дублировать
+        </button>
+        <button
+          style={{width: '32%', background: '#43a047', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: '0 2px 8px rgba(67,160,71,0.08)'}}
+          onClick={handleExportPDF}
+        >
+          Экспорт в PDF
         </button>
       </div>
       {showDuplicate && (
